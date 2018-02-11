@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -66,6 +67,9 @@ func (discovery *AutoDiscovery) Start() {
 		for {
 			b := make([]byte, 1024*4)
 			_, udpAddr, err := udpConn.ReadFromUDP(b)
+			if strings.HasPrefix(udpAddr.String(), "127.0.0.1") || strings.HasPrefix(udpAddr.String(), "192.168.0.1") {
+				continue
+			}
 			if err != nil {
 				panic(err)
 			}
