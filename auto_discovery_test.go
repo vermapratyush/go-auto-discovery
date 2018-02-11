@@ -12,7 +12,7 @@ func TestNew(t *testing.T) {
 	assert.Nil(t, err, "unable to start server2")
 	discovery1.Start()
 	var closeChan chan struct{}
-	discovery1.PeriodicNotify(closeChan)
+	go discovery1.PeriodicNotify(closeChan)
 
 	time.Sleep(100 * time.Second)
 

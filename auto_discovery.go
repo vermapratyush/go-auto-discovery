@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -25,7 +24,11 @@ func New(port int, serviceDiscoveryAddr string) (*AutoDiscovery, error) {
 	if serviceDiscoveryAddr == "" {
 		serviceDiscoveryAddr = "239.255.255.250:1900"
 	}
-	lAddr, err := net.ResolveUDPAddr("udp4", "127.0.0.1:"+strconv.Itoa(port))
+	ip, err := externalIP()
+	if err != nil || ip == nil {
+		return nil, err
+	}
+	lAddr, err := net.ResolveUDPAddr("udp4", ip.String()+":"+strconv.Itoa(port))
 	if err != nil {
 		return nil, err
 	}
@@ -42,6 +45,43 @@ func New(port int, serviceDiscoveryAddr string) (*AutoDiscovery, error) {
 		updateFrequency:        time.Second,
 		interfaceWithMultiCast: interfaceWithMultiCast,
 	}, nil
+}
+
+func externalIP() (*net.IP, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue // interface down
+		}
+		if iface.Flags&net.FlagLoopback != 0 {
+			continue // loopback interface
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			return nil, err
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+			ip = ip.To4()
+			if ip == nil {
+				continue // not an ipv4 address
+			}
+			return &ip, nil
+		}
+	}
+	return nil, errors.New("are you connected to the network?")
 }
 
 func supportMultiCase() *net.Interface {
@@ -67,14 +107,13 @@ func (discovery *AutoDiscovery) Start() {
 		for {
 			b := make([]byte, 1024*4)
 			_, udpAddr, err := udpConn.ReadFromUDP(b)
-			if strings.HasPrefix(udpAddr.String(), "127.0.0.1") || strings.HasPrefix(udpAddr.String(), "192.168.0.1") {
+			if udpAddr.IP.IsLoopback() {
 				continue
 			}
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println("peer...")
-			fmt.Println(udpAddr)
+			fmt.Println("peer: ", udpAddr)
 		}
 	}()
 }
