@@ -111,7 +111,7 @@ func (discovery *AutoDiscovery) Start() {
 		for {
 			b := make([]byte, 1024)
 			_, udpAddr, err := udpConn.ReadFromUDP(b)
-			if udpAddr.IP.IsLoopback() && string(b) != discovery.groupName {
+			if udpAddr.IP.IsLoopback() || string(b) != discovery.groupName {
 				continue
 			}
 			if err != nil {
