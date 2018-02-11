@@ -9,13 +9,12 @@ import (
 
 func TestNew(t *testing.T) {
 	discovery1, err := New(24040, "")
-	assert.Nil(t, err, "unable to start server1")
-	discovery2, err := New(24041, "")
 	assert.Nil(t, err, "unable to start server2")
 	discovery1.Start()
-	//discovery2.Start()
-	time.Sleep(time.Second)
-	discovery1.NotifyAll()
-	discovery2.NotifyAll()
-	time.Sleep(time.Second)
+	var closeChan chan struct{}
+	discovery1.PeriodicNotify(closeChan)
+
+	time.Sleep(100 * time.Second)
+
+	close(closeChan)
 }
