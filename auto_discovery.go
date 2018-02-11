@@ -14,10 +14,16 @@ type AutoDiscovery struct {
 	interfaceWithMultiCast *net.Interface
 	lAddr                  *net.UDPAddr
 	rAddr                  *net.UDPAddr
+	onNewPeerListener      []OnNewPeerListener
+	groupName              string
 }
 
-func New(port int, serviceDiscoveryAddr string) (*AutoDiscovery, error) {
-	interfaceWithMultiCast := supportMultiCase()
+type OnNewPeerListener interface {
+	OnNewPeer(peerAddr net.UDPAddr)
+}
+
+func New(groupName string, port int, serviceDiscoveryAddr string) (*AutoDiscovery, error) {
+	interfaceWithMultiCast := supportMultiCast()
 	if interfaceWithMultiCast == nil {
 		return nil, errors.New("no multi-cast interface detected")
 	}
@@ -36,14 +42,13 @@ func New(port int, serviceDiscoveryAddr string) (*AutoDiscovery, error) {
 	if err != nil {
 		return nil, err
 	}
-	//fmt.Print(lAddr)
-	//fmt.Print(rAddr)
 	return &AutoDiscovery{
 		Port:                   port,
 		lAddr:                  lAddr,
 		rAddr:                  rAddr,
 		updateFrequency:        time.Second,
 		interfaceWithMultiCast: interfaceWithMultiCast,
+		groupName:              groupName,
 	}, nil
 }
 
@@ -81,10 +86,10 @@ func externalIP() (*net.IP, error) {
 			return &ip, nil
 		}
 	}
-	return nil, errors.New("are you connected to the network?")
+	return nil, errors.New("are you connected to the network")
 }
 
-func supportMultiCase() *net.Interface {
+func supportMultiCast() *net.Interface {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		panic(err)
@@ -105,28 +110,17 @@ func (discovery *AutoDiscovery) Start() {
 	// start listening
 	go func() {
 		for {
-			b := make([]byte, 1024*4)
+			b := make([]byte, 1024)
 			_, udpAddr, err := udpConn.ReadFromUDP(b)
-			if udpAddr.IP.IsLoopback() {
+			if udpAddr.IP.IsLoopback() && string(b) != discovery.groupName {
 				continue
 			}
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println("peer: ", udpAddr)
+			fmt.Println("peer: ", udpAddr.IP.To4())
 		}
 	}()
-}
-
-func (discovery *AutoDiscovery) PeriodicNotify(closeChan chan struct{}) {
-	for {
-		select {
-		case <-time.After(time.Second):
-			go discovery.NotifyAll()
-		case <-closeChan:
-			return
-		}
-	}
 }
 
 func (discovery *AutoDiscovery) NotifyAll() {
@@ -135,6 +129,15 @@ func (discovery *AutoDiscovery) NotifyAll() {
 	if err != nil {
 		panic(err)
 	}
-	conn.Write([]byte("hi"))
+	conn.Write([]byte(discovery.groupName))
+}
 
+func (discovery *AutoDiscovery) SetOnJoinListener(listener ...OnNewPeerListener) {
+	discovery.onNewPeerListener = append(discovery.onNewPeerListener, listener...)
+}
+
+func (discovery *AutoDiscovery) fireCallback(peer *net.UDPAddr) {
+	for _, listener := range discovery.onNewPeerListener {
+		go listener.OnNewPeer(*peer)
+	}
 }
