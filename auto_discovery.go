@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"strconv"
 	"time"
@@ -118,7 +117,7 @@ func (discovery *AutoDiscovery) Start() {
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println("peer: ", udpAddr.IP.To4())
+			go discovery.fireCallback(*udpAddr)
 		}
 	}()
 }
@@ -136,8 +135,8 @@ func (discovery *AutoDiscovery) SetOnJoinListener(listener ...OnNewPeerListener)
 	discovery.onNewPeerListener = append(discovery.onNewPeerListener, listener...)
 }
 
-func (discovery *AutoDiscovery) fireCallback(peer *net.UDPAddr) {
+func (discovery *AutoDiscovery) fireCallback(peer net.UDPAddr) {
 	for _, listener := range discovery.onNewPeerListener {
-		go listener.OnNewPeer(*peer)
+		go listener.OnNewPeer(peer)
 	}
 }

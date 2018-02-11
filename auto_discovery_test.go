@@ -13,7 +13,7 @@ import (
 type autoConnectListener struct{}
 
 func (listener *autoConnectListener) OnNewPeer(peerAddr net.UDPAddr) {
-	fmt.Println("New peer joined ", peerAddr.IP.To4())
+	fmt.Println("New peer joined ", peerAddr)
 }
 
 func TestNew(t *testing.T) {
